@@ -1,0 +1,50 @@
+# Python environments and caches
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local photos and sensitive/generated data
+/photos/
+/data/
+/metadata/
+/outputs/
+/exports/
+
+# Local databases and SQLite sidecar files
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+
+# Search indexes and embeddings
+/indexes/
+*.faiss
+*.npy
+*.npz
+
+# Downloaded models and local caches
+/models/
+/.cache/
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Operating system files
+.DS_Store
+Thumbs.db
