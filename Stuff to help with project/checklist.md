@@ -17,13 +17,13 @@ Completed statuses and ownership below are carried over from the previous checkl
 
 ### 2. Local captions and structured attributes
 
-- [ ] Confirm a vision-capable local model and document its exact model name and runtime; llama3.2:3b is text-only
+- [Blake -in progress] Confirm a vision-capable local model (HuggingFaceTB/SmolVLM-500M-Instruct) and document its exact model name and runtime; llama3.2:3b is text-only and outputs main json
 - [Blake- in progress] Generate captions and non-biometric attributes locally
 - [Blake- in progress] Allow unknown values instead of forced guesses
-- [ ] Agree on structured metadata keys for activity, setting, and descriptive participant attributes
-- [ ] Update existing photo rows by ID; preserve existing captions, metadata, staff edits, event_group, and venue
-- [ ] Validate model output before saving; report failed photos without marking them successfully processed
-- [ ] Verify caption processing can be rerun without overwriting completed records
+- [Done- pending changes] Agree on structured metadata keys for activity, setting, and descriptive participant attributes
+- [Blake- Done] Update existing photo rows by ID; preserve existing captions, metadata, staff edits, event_group, and venue
+- [Blake- in progress ] Validate model output before saving; report failed photos without marking them successfully processed
+
 
 ### 3. Semantic search and gallery
 
@@ -75,6 +75,7 @@ Start after the MVP workflow and submission essentials work.
 
 ### Processing and staff workflow
 
+- [Anthony] Verify caption processing can be rerun without overwriting completed records
 - [ ] Add batch editing and bulk review
 - [ ] Add processing progress, per-photo error details, and retry controls
 - [ ] Resume interrupted caption batches and retry failed photos without regenerating completed records
