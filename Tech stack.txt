@@ -1,9 +1,11 @@
 ## MVP — Tech Stack
 - [ ] Python — application and pipeline
-- [ ] Local Hugging Face vision model — captions and attributes. Considering O-llama or Blip.
+- [X] Local Hugging Face vision model — Blip. 
+- [X] Ollama (llama3.2:3b) — structured metadata from captions
+- [X] Torch - Pretrained hugging face model implimentation
 - [ ] SQLite — persistent metadata
 - [ ] Local filesystem — original photos
 - [ ] Sentence Transformers — text embeddings
 - [ ] FAISS — vector search index
 - [ ] Streamlit — staff interface
-- [ ] Git + GitHub — code collaboration
+- [X] Git + GitHub — code collaboration
