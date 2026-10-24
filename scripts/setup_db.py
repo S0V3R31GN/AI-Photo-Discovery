@@ -10,10 +10,12 @@ connection = sqlite3.connect(db_path) # Opens the database or creates it if it d
 # Creates a table inside the database.
 connection.execute("""
     CREATE TABLE IF NOT EXISTS PHOTOS (
-        id TEXT PRIMARY KEY,
+        id TEXT PRIMARY KEY NOT NULL,
         path TEXT NOT NULL,
-        caption TEXT
-        metadata TEXT
+        caption TEXT,
+        metadata TEXT,
+        event_group TEXT,
+        venue TEXT
         )
 """
 )
