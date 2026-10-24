@@ -1,8 +1,9 @@
 ## MVP
 
 - [Blake-Not-Started] Agree on metadata schema and task ownership
-- [ ] Set up shared repo and Python environment
-- [ ] Exclude photos, metadata, databases, and indexes from Git
+- [Done] Set up shared repo 
+- [ ] Set up shared Python environment
+- [Anthony- Not started] Exclude photos, metadata, databases, and indexes from Git
 - [ ] Import local JPG/PNG photos with stable IDs
 - [ ] Generate captions and descriptive attributes locally
 - [ ] Save metadata and photo paths in SQLite
