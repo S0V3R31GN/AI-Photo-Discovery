@@ -1,40 +1,40 @@
 ## MVP
 
-- [Blake-Not-Started] Agree on metadata schema and task ownership
+- [Done] Agree on metadata schema and task ownership
 - [Done] Set up shared repo 
 - [ ] Set up shared Python environment
-- [Anthony- Not started] Exclude photos, metadata, databases, and indexes from Git
-- [ ] Import local JPG/PNG photos with stable IDs
-- [ ] Generate captions and descriptive attributes locally
-- [ ] Save metadata and photo paths in SQLite
+- [Anthony- not started] Exclude photos, metadata, databases, and indexes from Git
+- [ ] Document dependencies and setup
+- [Anthony- not started] Gitignore photos, metadata, databases, and indexes
+- [ ] Import JPG/PNG photos with stable IDs
+- [ ] Generate captions and non-biometric attributes locally
+- [ ] Allow unknown values instead of forced guesses
+- [ ] Store metadata and photo paths in SQLite
 - [ ] Support editable event groups and venues
-- [ ] Generate embeddings and FAISS index
+- [ ] Generate embeddings and build search index
 - [ ] Implement natural-language search
 - [ ] Display ranked photo gallery
 - [ ] Show selected photo and metadata
-- [ ] Find photos from the same event
-- [ ] Find photos from the same venue
-- [ ] Find similar participant descriptions
-- [ ] Accept/edit metadata and persist changes
-- [ ] Refresh search index after corrections
+- [ ] Pivot to same event
+- [ ] Pivot to same venue
+- [ ] Pivot to similar participant descriptions
+- [ ] Accept/edit records and persist corrections
+- [ ] Refresh embeddings/index after edits
 - [ ] Verify persistence after restart
-- [ ] Test complete workflow and sample queries
-- [ ] Write README and setup instructions
-- [ ] Prepare architecture and structured sample
-- [ ] Write system card and governance note
-- [ ] Prepare and rehearse demonstration
-- [ ] Submit Sunday before 10 AM Eastern
+- [ ] Test complete workflow and representative queries
+- [ ] Prepare README, architecture, and structured sample
+- [ ] Prepare system card and governance note
+- [ ] Rehearse demo and submit
 
-## Stretch
-
-- [ ] Combine structured filters and semantic ranking
+## Stretch — Using the Same Stack
+- [ ] Combine structured filters with semantic ranking
 - [ ] Parse complex queries into attribute filters
 - [ ] Preserve original AI output
 - [ ] Track review status and timestamped edit history
 - [ ] Add batch editing and bulk review
 - [ ] Show processing progress and errors
-- [ ] Support resumable imports without duplicates
-- [ ] Update only changed embeddings
+- [ ] Resume imports without duplicates
+- [ ] Refresh only changed embeddings
 - [ ] Evaluate 10–20 labeled queries
 - [ ] Report Precision@5, Recall@5, and latency
 - [ ] Measure retrieval changes after corrections
