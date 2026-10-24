@@ -22,6 +22,8 @@ __pycache__/
 *.sqlite-*
 *.sqlite3
 *.sqlite3-*
+data/*.db
+data/*.db-*
 
 # Search indexes and embeddings
 /indexes/
@@ -48,3 +50,5 @@ __pycache__/
 # Operating system files
 .DS_Store
 Thumbs.db
+
+/captions.json
