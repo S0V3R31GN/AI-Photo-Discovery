@@ -31,6 +31,24 @@ Use "unknown" if the caption doesn't say."""
 
 
 if __name__ == "__main__":
-    cap = caption("photos/test.jpg")
-    print(cap)
-    print(metadata(cap))
+    import os
+
+    results = []
+    files = sorted(f for f in os.listdir("photos") if f.lower().endswith((".jpg", ".jpeg", ".png")))
+
+    for i, name in enumerate(files, start=1):
+        path = os.path.join("photos", name)
+        cap = caption(path)
+        meta = metadata(cap)
+        results.append({
+            "id": name,
+            "path": path,
+            "caption": cap,
+            "event": meta.get("event", "unknown"),
+            "location": meta.get("location", "unknown"),
+            "attributes": meta.get("attributes", []),
+        })
+        print(f"{i}/{len(files)} {name}: {cap}")
+
+    with open("captions.json", "w", encoding="utf-8") as f:
+        json.dump(results, f, indent=2)
