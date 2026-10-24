@@ -2,13 +2,13 @@
 
 - [Done] Agree on metadata schema and task ownership
 - [Done] Set up shared repo 
-- [ ] Set up shared Python environment
+- [Done] Set up shared Python environment
 - [Anthony- done] Exclude photos, metadata, databases, and indexes from Git
 - [Blake- in progress] Document dependencies and setup
-- [ ] Import JPG/PNG photos with stable IDs
+- [Anthony- done] Import JPG/PNG photos with stable IDs
 - [Blake- in progress] Generate captions and non-biometric attributes locally
 - [Blake- in progress] Allow unknown values instead of forced guesses
-- [Anthony- in progress] Store metadata and photo paths in SQLite
+- [Anthony- done] Store metadata and photo paths in SQLite
 - [ ] Support editable event groups and venues
 - [ ] Generate embeddings and build search index
 - [ ] Implement natural-language search
