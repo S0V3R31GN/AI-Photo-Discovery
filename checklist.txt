@@ -1,6 +1,6 @@
 ## MVP
 
-- [ ] Agree on metadata schema and task ownership
+- [Blake-Not-Started] Agree on metadata schema and task ownership
 - [ ] Set up shared repo and Python environment
 - [ ] Exclude photos, metadata, databases, and indexes from Git
 - [ ] Import local JPG/PNG photos with stable IDs
