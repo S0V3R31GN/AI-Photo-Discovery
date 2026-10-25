@@ -52,6 +52,10 @@ whitespace. Partial JSON is never repaired or saved. Caption rewriting uses a
 128-token limit and rejects truncated prose. Both use a 2,048-token context.
 The 180-second request timeout remains in place; transport timeouts are not retried
 automatically. Token limits do not guarantee a wall-clock duration.
+Invalid metadata also prints a content-free "Metadata diagnostics" line with
+response size, whitespace counts, generated-token count, and JSON error position/
+category. This distinguishes blank output from unfinished JSON without printing
+the photo description or model response. Include these lines when troubleshooting.
 
 Regenerate one explicit record, retaining all protected staff fields:
 .\.venv\Scripts\python.exe caption.py --photo-id REPLACE_WITH_FULL_SHA256 --limit 1

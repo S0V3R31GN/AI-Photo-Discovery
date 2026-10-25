@@ -108,6 +108,33 @@ class CaptionDiagnosticTests(unittest.TestCase):
                 caption.metadata("blue")
         self.assertEqual(client.generate.call_count, 1)
 
+    def test_whitespace_response_diagnostics(self):
+        response = {"response": " " * 500, "done_reason": "length", "eval_count": 512}
+        info = caption.metadata_diagnostics(response, "private description", 512, 1)
+        self.assertFalse(info["json_complete"])
+        self.assertEqual(info["non_whitespace_characters"], 0)
+        self.assertEqual(info["leading_whitespace_characters"], 500)
+        self.assertEqual(info["json_error"], "expected_value")
+        self.assertEqual(info["generated_tokens"], 512)
+
+    def test_partial_string_diagnostics_do_not_expose_content(self):
+        response = {"response": '{"people": ["SECRET PHOTO DESCRIPTION', "done_reason": "length"}
+        info = caption.metadata_diagnostics(response, r"C:\private\sensitive-name.jpg", 1024, 2)
+        self.assertFalse(info["json_complete"])
+        self.assertEqual(info["json_error"], "unterminated_string")
+        self.assertEqual(info["starts_with"], "object")
+        text = json.dumps(info)
+        for secret in ("SECRET", "PHOTO DESCRIPTION", "sensitive-name", "private"):
+            self.assertNotIn(secret, text)
+
+    def test_diagnostics_distinguish_complete_json_and_extra_output(self):
+        complete = caption.metadata_diagnostics({"response": json.dumps(self.meta), "done_reason": "length"}, "private", 512, 1)
+        extra = caption.metadata_diagnostics({"response": json.dumps(self.meta) + " private text", "done_reason": "length"}, "private", 512, 1)
+        self.assertTrue(complete["json_complete"])
+        self.assertFalse(extra["json_complete"])
+        self.assertEqual(extra["json_error"], "extra_data")
+        self.assertNotIn("private", json.dumps(extra))
+
     def test_token_limit_rejects_caption(self):
         client = Mock()
         client.generate.return_value = {"response": "A partial caption", "done_reason": "length"}

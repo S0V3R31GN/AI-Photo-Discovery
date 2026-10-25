@@ -2,6 +2,7 @@
 import argparse
 from functools import lru_cache
 from hashlib import sha256
+from itertools import groupby
 import json
 import logging
 import time
@@ -39,6 +40,46 @@ def _check_complete(response):
 
 def diagnostic_result(item):
     return {key: item[key] for key in ("status", "stage", "error_type", "seconds", "stage_seconds")}
+
+
+def metadata_diagnostics(response, description, token_limit, attempt):
+    """Describe response structure only. Never include source text, values, IDs, or paths."""
+    raw = response["response"]
+    result = {
+        "attempt": attempt, "token_limit": token_limit,
+        "characters": len(raw), "non_whitespace_characters": len("".join(raw.split())),
+        "leading_whitespace_characters": len(raw) - len(raw.lstrip()),
+        "longest_identical_character_run": max((sum(1 for _ in items) for _, items in groupby(raw)), default=0),
+        "description_characters": len(description), "description_words": len(description.split()),
+        "description_distinct_words": len(set(description.casefold().split())),
+    }
+    reason = response.get("done_reason")
+    result["stop_reason"] = reason if reason in {"length", "stop", "load", "unload"} else "other"
+    count = response.get("eval_count")
+    result["generated_tokens"] = count if isinstance(count, int) else None
+    stripped = raw.lstrip()
+    result["starts_with"] = {"{": "object", "[": "array", '"': "string"}.get(stripped[:1], "other_or_empty")
+    try:
+        json.loads(raw)
+        result["json_complete"] = True
+    except json.JSONDecodeError as error:
+        result["json_complete"] = False
+        result["json_error_position"] = error.pos
+        # Use fixed labels rather than copying any response/error text.
+        if error.msg.startswith("Unterminated string"):
+            kind = "unterminated_string"
+        elif error.msg.startswith("Extra data"):
+            kind = "extra_data"
+        elif error.msg.startswith("Expecting value"):
+            kind = "expected_value"
+        elif error.msg.startswith("Expecting property name"):
+            kind = "expected_property_name"
+        elif error.msg.startswith("Expecting ',' delimiter"):
+            kind = "expected_separator"
+        else:
+            kind = "other_json_syntax"
+        result["json_error"] = kind
+    return result
 
 
 VISION_PROMPT = """Describe this photo in 2-3 sentences. Include visible activities,
@@ -124,6 +165,9 @@ Schema: {json.dumps(METADATA_SCHEMA)}"""
             proposal["people"] = [normalize(person) for person in proposal["people"]]
             return proposal
         except (ValueError, GenerationLimitError) as exc:
+            logging.getLogger(__name__).warning(
+                "Metadata diagnostics: %s",
+                json.dumps(metadata_diagnostics(response, desc, token_limit, attempt + 1)))
             if attempt:
                 raise
             logging.getLogger(__name__).warning(
