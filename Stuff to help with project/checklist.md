@@ -1,30 +1,5 @@
 # Track B — execution checklist
 
-This checklist implements the agreed 19-step photo pipeline. Follow dependencies; independent work can run in parallel.
-
-## Pipeline task numbering
-
-Each checkbox starts with **X.Y**: **X is its primary step in the 19-step pipeline; Y distinguishes tasks associated with that step**. Example: **3.1**, **3.2**, **3.3** are tasks associated with pipeline step 3, not checklist section 3.
-
-Tasks spanning several steps list the full association next to the ID. Planning, schema setup, evaluation, documentation, and submission entries are explicitly labeled as support/checks for the referenced steps; they are not additional runtime steps. The numbering is a cross-reference, not a new execution order: follow the section dependencies below. Existing branches, owners, pass conditions, and completion states are preserved.
-
-## Tonight's execution order
-
-| Stage | Sections | Observable finish |
-| --- | --- | --- |
-| Agree and verify | 0–1 | One shared metadata example; valid SQLite rows and resolvable image paths |
-| Connect the core | 2–5 | Import → caption → SQLite → embeddings → search → ranked gallery |
-| Complete the interactive MVP | 6–7 | All three related-photo actions, saved acceptance/edits, and corrected search results |
-| Evaluate and submit | 8–9 | Measured results, rehearsed workflow, required artifacts, and tested submission revision |
-
-**Tonight's first milestone is sections 0–5.** Sections 6–7 complete the interactive MVP; they remain required work if deferred. Sections 8–9 cover evaluation and submission. This is a priority order, not a promise that every section fits tonight.
-
-**Work split:** after section 0 and the section 1 checks, Blake handles caption integration (section 2) while Anthony builds the SQLite gallery (section 3) using the agreed synthetic record. Integrate on three real local photos before treating either as complete. Anthony then handles semantic search (sections 4–5). Blake can start section 6 once the selected-photo view works; its SQLite-based controls do not need to wait for semantic search. Participant similarity and the complete pivot demonstration do depend on the search implementation.
-
-**Start the larger caption batch immediately after the three-photo caption/gallery integration in section 3 passes.** Continue search/UI work while that explicit batch runs. Do not wait for evaluation in section 8. Keep processing on one machine or one worker per local database; use short per-photo writes so the app can continue reading.
-
-Draft section 9 documentation alongside implementation; finalize it against the actual tested system.
-
 ## How to use this file
 
 - `[x]` means the stated pass condition has evidence. `[ ]` means unfinished or not yet verified.
