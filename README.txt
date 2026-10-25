@@ -100,3 +100,19 @@ Regex normalization and prompts do not guarantee privacy, correctness, or remova
 of sensitive inferences. Staff review is required.
 
 Architecture and verification limits: docs/architecture.md
+
+Local folder verification and submission assets:
+.\.venv\Scripts\python.exe scripts/verify_workflow.py --folder "C:\Photos\Test"
+
+This processes all pending/failed images from the supplied folder. It tests
+corrections, failure/retry, all pivots, and fresh-process persistence using a
+temporary database copy, leaving synthetic test edits out of the normal archive.
+Allow one extra real captioning attempt for the isolated regeneration test.
+It writes outputs/verification-summary.json with aggregate results and timings.
+The structured sample and private diagnostics also stay under outputs/ and
+must remain confidential. The timing queries are unlabelled; relevance and
+caption accuracy are explicitly NOT measured. Ready records are not reprocessed.
+
+Rehearsal and manual evaluation: docs/demo-checklist.md
+Model/system card: docs/system-card.md
+Data governance note: docs/data-governance.md
