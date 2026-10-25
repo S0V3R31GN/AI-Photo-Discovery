@@ -1,6 +1,7 @@
 """Shared SQLite access for the photo discovery app."""
 
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 import json
 import sqlite3
@@ -26,6 +27,37 @@ DB_PATH = REPO_ROOT / "data" / "photos.db"
 PHOTO_DIR = REPO_ROOT / "data" / "photos"
 
 LIST_FIELDS = ("people", "objects", "user_input", "staff_fields")
+TEXT_FIELDS = ("caption", "vision_description", "event", "location", "event_group", "venue")
+EDITABLE_FIELDS = TEXT_FIELDS + ("people", "objects", "user_input")
+GENERATED_FIELDS = ("caption", "vision_description", "event", "location", "people", "objects")
+
+
+class RevisionConflict(RuntimeError):
+    """The record changed; reload before retrying the operation."""
+
+
+def resolve_stored_path(stored_path):
+    path = Path(stored_path)
+    return path if path.is_absolute() else REPO_ROOT / path
+
+
+def validate_fields(fields, allowed=EDITABLE_FIELDS):
+    if not isinstance(fields, dict):
+        raise ValueError("Fields must be a JSON object")
+    unexpected = set(fields) - set(allowed)
+    if unexpected:
+        raise ValueError(f"Unexpected fields: {sorted(unexpected)}")
+    clean = {}
+    for field, value in fields.items():
+        if field in TEXT_FIELDS:
+            if value is not None and not isinstance(value, str):
+                raise ValueError(f"{field} must be a string or null")
+            clean[field] = value.strip() if isinstance(value, str) else None
+        else:
+            if not isinstance(value, list) or any(not isinstance(v, str) for v in value):
+                raise ValueError(f"{field} must be a list of strings")
+            clean[field] = [v.strip() for v in value if v.strip()]
+    return clean
 
 
 @contextmanager
@@ -75,6 +107,20 @@ def migrate():
                     revision INTEGER NOT NULL DEFAULT 0
                 )
             """)
+            columns = {row[1].lower() for row in connection.execute("PRAGMA table_info(photos)")}
+            additions = {
+                "vision_description": "TEXT", "event": "TEXT", "location": "TEXT",
+                "people": "TEXT NOT NULL DEFAULT '[]'",
+                "objects": "TEXT NOT NULL DEFAULT '[]'",
+                "user_input": "TEXT NOT NULL DEFAULT '[]'",
+                "processing_status": "TEXT NOT NULL DEFAULT 'pending'",
+                "processing_error": "TEXT", "review_decision": "TEXT", "reviewed_at": "TEXT",
+                "staff_fields": "TEXT NOT NULL DEFAULT '[]'",
+                "revision": "INTEGER NOT NULL DEFAULT 0",
+            }
+            for name, definition in additions.items():
+                if name not in columns:
+                    connection.execute(f"ALTER TABLE photos ADD COLUMN {name} {definition}")
             connection.execute("""
                 CREATE INDEX IF NOT EXISTS photos_event_group
                 ON photos(event_group)
@@ -127,6 +173,8 @@ def register_upload(image_bytes, original_name):
     with Image.open(BytesIO(image_bytes)) as image:
         image_format = image.format
         image.verify()
+    with Image.open(BytesIO(image_bytes)) as image:
+        image.load()
 
     if image_format not in extensions:
         raise ValueError(f"Unsupported image format: {original_name}")
@@ -167,6 +215,90 @@ def register_upload(image_bytes, original_name):
                 )
 
     return photo_id
+
+
+def _commit_record(record, expected_revision, previous):
+    # Model inference/encoding must finish BEFORE acquiring a write lock.
+    import search
+    prepared = search.prepare_photo(record, previous)
+    with connect() as connection:
+        with connection:
+            connection.execute("BEGIN IMMEDIATE")
+            current = connection.execute(
+                "SELECT revision FROM photos WHERE id = ?", (record["id"],)
+            ).fetchone()
+            if current is None:
+                raise KeyError(record["id"])
+            if current["revision"] != expected_revision:
+                raise RevisionConflict("Photo changed during processing. Reload and retry.")
+            names = list(EDITABLE_FIELDS) + [
+                "staff_fields", "processing_status", "processing_error",
+                "review_decision", "reviewed_at",
+            ]
+            values = [json.dumps(record[n], ensure_ascii=False) if n in LIST_FIELDS
+                      else record[n] for n in names]
+            connection.execute(
+                "UPDATE photos SET " + ", ".join(f"{n} = ?" for n in names)
+                + ", revision = revision + 1 WHERE id = ?",
+                (*values, record["id"]),
+            )
+            search.refresh_photo(connection, record, prepared)
+            updated = decode_photo(connection.execute(
+                "SELECT * FROM photos WHERE id = ?", (record["id"],)
+            ).fetchone())
+    return updated
+
+
+def save_generated(photo_id, validated_proposal, expected_revision=None):
+    proposal = validate_fields(validated_proposal, GENERATED_FIELDS)
+    if set(proposal) != set(GENERATED_FIELDS):
+        raise ValueError(f"Generated output requires: {', '.join(GENERATED_FIELDS)}")
+    for field in ("caption", "vision_description"):
+        if not proposal[field]:
+            raise ValueError(f"Generated {field} cannot be empty")
+    record = get_photo(photo_id)
+    if record is None:
+        raise KeyError(photo_id)
+    revision = record["revision"]
+    if expected_revision is not None and revision != expected_revision:
+        raise RevisionConflict("Photo changed during inference. Retry using the latest record.")
+    previous = dict(record)
+    for field, value in proposal.items():
+        if field not in record["staff_fields"]:
+            record[field] = value
+    record["processing_status"] = "ready"
+    record["processing_error"] = None
+    return _commit_record(record, revision, previous)
+
+
+def save_review(photo_id, fields, decision, expected_revision):
+    fields = validate_fields(fields)
+    if decision not in {"accepted", "edited", "rejected"}:
+        raise ValueError("Decision must be accepted, edited, or rejected")
+    record = get_photo(photo_id)
+    if record is None:
+        raise KeyError(photo_id)
+    if record["revision"] != expected_revision:
+        raise RevisionConflict("Photo changed. Reload before saving.")
+    previous = dict(record)
+    record.update(fields)
+    # Explicitly submitted empty values are protected too.
+    record["staff_fields"] = sorted(set(record["staff_fields"]) | set(fields))
+    record["review_decision"] = decision
+    record["reviewed_at"] = datetime.now(timezone.utc).isoformat()
+    return _commit_record(record, expected_revision, previous)
+
+
+def mark_failed(photo_id, error, expected_revision):
+    with connect() as connection:
+        with connection:
+            changed = connection.execute(
+                "UPDATE photos SET processing_status = 'failed', processing_error = ?, "
+                "revision = revision + 1 WHERE id = ? AND revision = ?",
+                (str(error)[:2000], photo_id, expected_revision),
+            ).rowcount
+            if not changed:
+                raise RevisionConflict("Photo changed; failure status was not applied.")
 
 
 if __name__ == "__main__":

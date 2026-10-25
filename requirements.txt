@@ -6,3 +6,4 @@ streamlit
 sqlite-vec
 sentence-transformers
 pillow-heif
+numpy
