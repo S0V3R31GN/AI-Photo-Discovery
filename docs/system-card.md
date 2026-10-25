@@ -83,6 +83,15 @@ not provide a complete production security boundary.
 
 ## Evidence and remaining evaluation
 
+Anthony's final local verification report records 19 ready photos, zero failed or
+pending records, and all 15 workflow checks passing. Five warmed queries measured
+15.60 ms median and 18.01 ms maximum, including embedding/SQLite retrieval and
+excluding browser rendering. No new normal-archive caption attempts were made on
+that rerun, so its caption-latency fields are null. A preceding retry of the formerly
+failed photo completed in 24.59 seconds; that is a single observation, not average
+throughput. See `docs/verification-results.md` for environment details and the
+distinction between functional tests and unmeasured model accuracy/relevance.
+
 The initial Windows run reported Python 3.14.5, torch 2.14.1+cpu, Transformers
 5.20.2, successful local Ollama access, and one completed processing attempt at
 46.76 seconds. That single measurement includes the observed startup conditions;
