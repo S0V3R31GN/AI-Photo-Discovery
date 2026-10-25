@@ -1,11 +1,3 @@
-AI Photo Discovery — Anthony's independent Track B implementation
-Repository: S0V3R31GN/AI-Photo-Discovery
-Working branch: feature/sqlite-pipeline
-Submission deadline: Sunday October 25, 2026 at 10 AM Eastern.
-
-Run each command separately in PowerShell FROM THE REPOSITORY ROOT.
-The existing Windows environment is .\.venv\Scripts\python.exe.
-
 1. Install dependencies (or retain your already tested environment):
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe -m pip check
