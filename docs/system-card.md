@@ -29,6 +29,12 @@ Staff can accept, edit, or reject a review, with a saved decision and timestamp.
 Actual form edits become protected fields, including cleared values. Unchanged
 fields are not automatically locked by acceptance. Regeneration retains protected
 values. Model output types are validated. Failed records are visible and retryable.
+Vision generation uses an eight-token repetition block and a repetition penalty.
+A heuristic checks long descriptions for both low vocabulary diversity and
+excessive repeated eight-word phrases. A rejected description gets one shorter
+vision retry; persistent repetition remains a visible failure before metadata
+generation. This heuristic can affect legitimate repeated phrasing and does not
+establish the factual accuracy of a description.
 Ollama metadata generation uses a JSON schema and an initial 512-token output
 limit. Invalid or incomplete metadata gets one compact retry capped at 1,024 tokens.
 Complete, validated JSON remains usable if a token limit interrupts later whitespace;

@@ -57,6 +57,13 @@ response size, whitespace counts, generated-token count, and JSON error position
 category. This distinguishes blank output from unfinished JSON without printing
 the photo description or model response. Include these lines when troubleshooting.
 
+Vision generation also prevents repeated eight-token sequences and applies a
+repetition penalty. Long descriptions with both low word diversity and excessive
+repeated eight-word phrases are rejected before metadata generation. One shorter
+vision retry is allowed; repeated failure remains visible as
+RepetitiveDescriptionError. This is a degeneration check, not a caption-accuracy
+or hallucination detector. It can alter phrasing or reject legitimate repetition.
+
 Regenerate one explicit record, retaining all protected staff fields:
 .\.venv\Scripts\python.exe caption.py --photo-id REPLACE_WITH_FULL_SHA256 --limit 1
 

@@ -1,11 +1,16 @@
 """Bounded generation, accurate failure stages, and redacted troubleshooting output."""
 from io import BytesIO
+from contextlib import nullcontext
 import json
 from pathlib import Path
+import random
+import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 from PIL import Image
+import numpy as np
 import caption
 import db
 import search
@@ -48,6 +53,67 @@ class CaptionDiagnosticTests(unittest.TestCase):
         with patch.object(caption, "get_ollama", return_value=client):
             self.assertEqual(caption.rich_caption("blue", self.meta), "A person wears blue.")
         self.assertEqual(client.generate.call_args.kwargs["options"]["num_predict"], 128)
+
+    def test_repeated_vision_phrase_is_rejected(self):
+        phrase = "A person is standing by a table wearing a blue jacket and holding a small red balloon. "
+        with self.assertRaises(caption.RepetitiveDescriptionError):
+            caption.validate_description(phrase * 10)
+
+    def test_low_word_diversity_without_phrase_loops_is_allowed(self):
+        rng = random.Random(42)
+        text = " ".join(rng.choices([f"word{i}" for i in range(18)], k=100))
+        self.assertLess(caption.description_repetition(text)["distinct_word_fraction"], 0.4)
+        self.assertEqual(caption.validate_description(text), text)
+
+    def test_short_ordinary_description_is_preserved(self):
+        text = "A person wears a blue jacket. Another person holds a red balloon."
+        self.assertEqual(caption.validate_description(text), text)
+
+    def fake_vision(self, descriptions):
+        processor, model = Mock(), Mock()
+        processor.apply_chat_template.return_value = "prompt"
+        processor.return_value = {"input_ids": np.zeros((1, 3), dtype=np.int64)}
+        processor.batch_decode.side_effect = [[text] for text in descriptions]
+        model.generate.return_value = np.zeros((1, 6), dtype=np.int64)
+        return processor, model
+
+    def test_vision_generation_uses_repetition_controls(self):
+        processor, model = self.fake_vision(["A person wears a blue jacket."])
+        path = db.resolve_stored_path(db.get_photo(self.photo_id)["path"])
+        with patch.dict(sys.modules, {"torch": SimpleNamespace(inference_mode=nullcontext)}), patch.object(caption, "get_vision_model", return_value=(processor, model)):
+            description = caption.describe(path)
+        self.assertEqual(description, "A person wears a blue jacket.")
+        self.assertEqual(model.generate.call_count, 1)
+        self.assertEqual(model.generate.call_args.kwargs["no_repeat_ngram_size"], 8)
+        self.assertGreater(model.generate.call_args.kwargs["repetition_penalty"], 1.0)
+
+    def test_repetitive_vision_gets_one_shorter_retry(self):
+        phrase = "A person is standing by a table wearing a blue jacket and holding a small red balloon. "
+        processor, model = self.fake_vision([phrase * 10, "A person holds a balloon."])
+        path = db.resolve_stored_path(db.get_photo(self.photo_id)["path"])
+        with patch.dict(sys.modules, {"torch": SimpleNamespace(inference_mode=nullcontext)}), patch.object(caption, "get_vision_model", return_value=(processor, model)):
+            self.assertEqual(caption.describe(path), "A person holds a balloon.")
+        self.assertEqual(model.generate.call_count, 2)
+        self.assertLess(model.generate.call_args_list[1].kwargs["max_new_tokens"],
+                        model.generate.call_args_list[0].kwargs["max_new_tokens"])
+
+    def test_persistently_repetitive_vision_never_reaches_metadata(self):
+        phrase = "A person is standing by a table wearing a blue jacket and holding a small red balloon. "
+        processor, model = self.fake_vision([phrase * 10, phrase * 10])
+        with patch.dict(sys.modules, {"torch": SimpleNamespace(inference_mode=nullcontext)}), patch.object(caption, "get_vision_model", return_value=(processor, model)), patch.object(caption, "metadata") as metadata:
+            result = caption.process_pending(limit=1)
+        self.assertEqual(model.generate.call_count, 2)
+        self.assertEqual(result["items"][0]["stage"], "vision")
+        self.assertEqual(result["items"][0]["error_type"], "RepetitiveDescriptionError")
+        self.assertIsNone(db.get_photo(self.photo_id)["vision_description"])
+        metadata.assert_not_called()
+
+    def test_direct_metadata_call_rejects_repetitive_source(self):
+        phrase = "A person is standing by a table wearing a blue jacket and holding a small red balloon. "
+        with patch.object(caption, "get_ollama") as ollama:
+            with self.assertRaises(caption.RepetitiveDescriptionError):
+                caption.metadata(phrase * 10)
+        ollama.assert_not_called()
 
     def test_complete_valid_json_is_accepted_even_if_token_limit_was_hit(self):
         client = Mock()
