@@ -29,10 +29,12 @@ Staff can accept, edit, or reject a review, with a saved decision and timestamp.
 Actual form edits become protected fields, including cleared values. Unchanged
 fields are not automatically locked by acceptance. Regeneration retains protected
 values. Model output types are validated. Failed records are visible and retryable.
-Ollama metadata generation is constrained by a JSON schema and a 512-token output
-limit. Caption rewriting is limited to 128 output tokens, with a 2,048-token context
-for both requests. Output cut off by the token limit is rejected rather than saved
-as complete. Per-stage timings identify which operation failed; the 180-second
+Ollama metadata generation uses a JSON schema and an initial 512-token output
+limit. Invalid or incomplete metadata gets one compact retry capped at 1,024 tokens.
+Complete, validated JSON remains usable if a token limit interrupts later whitespace;
+partial JSON is never repaired or saved. Caption rewriting is limited to 128 output
+tokens and truncated prose is rejected. Both requests use a 2,048-token context.
+Per-stage timings identify which operation failed; the 180-second
 Ollama request timeout remains. These controls do not guarantee a wall-clock bound
 or improve the truthfulness of descriptions by themselves.
 Revision checks reject stale writes. Record changes and affected vectors commit

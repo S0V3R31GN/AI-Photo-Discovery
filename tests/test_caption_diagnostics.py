@@ -49,12 +49,64 @@ class CaptionDiagnosticTests(unittest.TestCase):
             self.assertEqual(caption.rich_caption("blue", self.meta), "A person wears blue.")
         self.assertEqual(client.generate.call_args.kwargs["options"]["num_predict"], 128)
 
-    def test_token_limit_rejects_even_parseable_partial_metadata(self):
+    def test_complete_valid_json_is_accepted_even_if_token_limit_was_hit(self):
         client = Mock()
-        client.generate.return_value = {"response": json.dumps(self.meta), "done_reason": "length"}
+        client.generate.return_value = {"response": json.dumps(self.meta) + "\n   ", "done_reason": "length"}
+        with patch.object(caption, "get_ollama", return_value=client):
+            self.assertEqual(caption.metadata("blue"), self.meta)
+        self.assertEqual(client.generate.call_count, 1)
+
+    def test_incomplete_metadata_gets_one_compact_retry(self):
+        client = Mock()
+        client.generate.side_effect = [
+            {"response": '{"event": "an unfinished value', "done_reason": "length"},
+            {"response": json.dumps(self.meta), "done_reason": "stop"},
+        ]
+        with patch.object(caption, "get_ollama", return_value=client):
+            self.assertEqual(caption.metadata("blue"), self.meta)
+        calls = client.generate.call_args_list
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0].kwargs["options"]["num_predict"], 512)
+        self.assertEqual(calls[1].kwargs["options"]["num_predict"], 1024)
+        self.assertNotEqual(calls[0].kwargs["prompt"], calls[1].kwargs["prompt"])
+
+    def test_repeated_incomplete_metadata_is_never_saved(self):
+        client = Mock()
+        client.generate.return_value = {"response": '{"people": ["blue', "done_reason": "length"}
+        with patch.object(caption, "get_ollama", return_value=client), patch.object(caption, "describe", return_value="blue"), patch.object(caption, "rich_caption") as rich:
+            result = caption.process_pending(limit=1)
+        self.assertEqual(client.generate.call_count, 2)
+        self.assertEqual(result["items"][0]["error_type"], "GenerationLimitError")
+        self.assertEqual(result["items"][0]["stage"], "metadata")
+        self.assertIsNone(db.get_photo(self.photo_id)["caption"])
+        self.assertEqual(db.get_photo(self.photo_id)["people"], [])
+        rich.assert_not_called()
+
+    def test_wrong_types_get_one_retry_and_remain_subject_to_validation(self):
+        client = Mock()
+        client.generate.side_effect = [
+            {"response": json.dumps({**self.meta, "people": "blue"}), "done_reason": "stop"},
+            {"response": json.dumps(self.meta), "done_reason": "stop"},
+        ]
+        with patch.object(caption, "get_ollama", return_value=client):
+            self.assertEqual(caption.metadata("blue"), self.meta)
+        self.assertEqual(client.generate.call_count, 2)
+
+    def test_trailing_non_json_is_not_accepted_as_a_complete_object(self):
+        client = Mock()
+        client.generate.return_value = {"response": json.dumps(self.meta) + " unfinished text", "done_reason": "length"}
         with patch.object(caption, "get_ollama", return_value=client):
             with self.assertRaises(caption.GenerationLimitError):
                 caption.metadata("blue")
+        self.assertEqual(client.generate.call_count, 2)
+
+    def test_transport_timeout_is_not_automatically_repeated(self):
+        client = Mock()
+        client.generate.side_effect = TimeoutError("response timeout")
+        with patch.object(caption, "get_ollama", return_value=client):
+            with self.assertRaises(TimeoutError):
+                caption.metadata("blue")
+        self.assertEqual(client.generate.call_count, 1)
 
     def test_token_limit_rejects_caption(self):
         client = Mock()

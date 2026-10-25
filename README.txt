@@ -45,10 +45,13 @@ Diagnose one failed attempt without printing photo IDs, paths, or generated text
 
 The diagnostic identifies verify_image, vision, metadata, caption, or
 embed_and_save as the failed stage and reports each stage's elapsed seconds.
-Ollama metadata uses a JSON schema and a 512-token output limit; caption rewriting
-uses a 128-token output limit. Both use a 2,048-token context. Truncated responses
-raise GenerationLimitError and are not silently saved. The 180-second request
-timeout remains in place. Token limits do not guarantee a wall-clock duration.
+Ollama metadata uses a JSON schema and an initial 512-token output limit. Invalid
+or incomplete metadata gets ONE retry with a compact prompt and 1,024-token limit.
+Complete, type-validated JSON is accepted even if the token limit interrupted later
+whitespace. Partial JSON is never repaired or saved. Caption rewriting uses a
+128-token limit and rejects truncated prose. Both use a 2,048-token context.
+The 180-second request timeout remains in place; transport timeouts are not retried
+automatically. Token limits do not guarantee a wall-clock duration.
 
 Regenerate one explicit record, retaining all protected staff fields:
 .\.venv\Scripts\python.exe caption.py --photo-id REPLACE_WITH_FULL_SHA256 --limit 1
