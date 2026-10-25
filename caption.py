@@ -4,6 +4,7 @@ import ollama
 import json
 import os
 import hashlib
+from normalize import normalize
 MODEL_ID = "HuggingFaceTB/SmolVLM-500M-Instruct"
 processor = AutoProcessor.from_pretrained(MODEL_ID, size={"longest_edge": 512})
 model = AutoModelForImageTextToText.from_pretrained(MODEL_ID)
@@ -62,11 +63,11 @@ if __name__ == "__main__":
         results.append({
             "id": hashlib.sha1(name.encode()).hexdigest()[:10],
             "path": path,
-            "caption": rich_caption(desc, meta),
+            "caption": normalize(rich_caption(desc, meta)),
             "vision_description": desc,
             "event": meta.get("event", "unknown"),
             "location": meta.get("location", "unknown"),
-            "people": meta.get("people", []),
+            "people": [normalize(str(p)) for p in meta.get("people", [])],
             "objects": meta.get("objects", []),
         })
         print(f"{i}/{len(files)} {results[-1]['id']}")
