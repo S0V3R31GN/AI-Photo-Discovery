@@ -1,16 +1,35 @@
 # Track B — execution checklist
 
-Follow the numbered sections in order. This checklist implements the agreed 19-step photo pipeline.
+This checklist implements the agreed 19-step photo pipeline. Follow dependencies; independent work can run in parallel.
+
+## Tonight's execution order
+
+| Stage | Sections | Observable finish |
+| --- | --- | --- |
+| Agree and verify | 0–1 | One shared metadata example; valid SQLite rows and resolvable image paths |
+| Connect the core | 2–5 | Import → caption → SQLite → embeddings → search → ranked gallery |
+| Complete the interactive MVP | 6–7 | All three related-photo actions, saved acceptance/edits, and corrected search results |
+| Evaluate and submit | 8–9 | Measured results, rehearsed workflow, required artifacts, and tested submission revision |
+
+**Tonight's first milestone is sections 0–5.** Sections 6–7 complete the interactive MVP; they remain required work if deferred. Sections 8–9 cover evaluation and submission. This is a priority order, not a promise that every section fits tonight.
+
+**Work split:** after section 0 and the section 1 checks, Blake handles caption integration (section 2) while Anthony builds the SQLite gallery (section 3) using the agreed synthetic record. Integrate on three real local photos before treating either as complete. Anthony then handles semantic search (sections 4–5). Blake can start section 6 once the selected-photo view works; its SQLite-based controls do not need to wait for semantic search. Participant similarity and the complete pivot demonstration do depend on the search implementation.
+
+**Start the larger caption batch immediately after the three-photo caption/gallery integration in section 3 passes.** Continue search/UI work while that explicit batch runs. Do not wait for evaluation in section 8. Keep processing on one machine or one worker per local database; use short per-photo writes so the app can continue reading.
+
+Draft section 9 documentation alongside implementation; finalize it against the actual tested system.
 
 ## How to use this file
 
 - `[x]` means the stated pass condition has evidence. `[ ]` means unfinished or not yet verified.
 - Every task names its branch. Owner names below are suggested assignments; agree on them together before starting.
-- Start each branch from updated `dev`. Open its PR into `dev`; the other developer reviews it. After merging, start the next dependent branch from updated `dev`.
-- A branch is ready when its receiving component can consume its output. A successful script exit alone is insufficient.
+- Start each branch from updated `dev`. Open its PR into `dev`; the other developer reviews it. Start dependent work from the merged version. Independent branches can proceed together; update them with merged dependencies before integration tests.
+- Complete the pass conditions before marking a task done. Verify the receiving component consumes its output before declaring an integration milestone complete. A successful script exit alone is insufficient.
 - Proposed new filenames are implementation targets, not claims that those files already exist.
 - Baseline: source inspected at `dev` commit `7ff7a2d`, plus Anthony's reported import checks. Unchecked items must be verified against newer work before duplicating it. No fresh runtime audit is implied.
 - Existing source has two disconnected paths: SQLite registration, and `caption.py` → `captions.json` → `app.py`. The tasks below connect everything through SQLite.
+
+
 
 ## 0. Lock the data handoffs — do this together first
 
@@ -20,6 +39,8 @@ Purpose: stop the captioner, database, index, and UI from inventing different re
 - [ ] **Branch `docs/pipeline-contract` — Both:** Add `docs/metadata-schema.md` with one exact JSON shape for the `metadata` column. Proposed keys: `activity` (string or null), `setting` (string or null), `people` (list of clothing/gear descriptions), `objects` (list of strings), `vision_description` (string). Map the existing model's `event`/`location` outputs to `activity`/`setting`. **Pass:** write one synthetic example that both captioning and UI will support; no unresolved `attributes` versus `people` naming.
 - [ ] **Branch `docs/pipeline-contract` — Both:** Define `event_group` as a specific staff-confirmed gathering and `venue` as a staff-confirmed place; leave unknown values NULL. Define participant matches as descriptive similarity, not verified identity. **Pass:** two unrelated birthday parties cannot become the same event just because both have activity `birthday party`.
 - [ ] **Branch `docs/pipeline-contract` — Both:** Adopt one stable ID per SQLite photo row. All later operations use it; FAISS positions map to it. **Pass:** captioning and UI do not create replacement IDs from filenames.
+
+
 
 ## 1. Verify the storage foundation
 
@@ -33,6 +54,8 @@ Suggested owner: Anthony. Existing work came from `feature/sqlite`; use the repa
 - [ ] **Branch `fix/sqlite-foundation` — Anthony:** Verify the actual local database has all six columns; rerunning `CREATE TABLE IF NOT EXISTS` does not repair an old schema. Preserve populated databases using a migration. **Pass:** inspect columns and read the existing photo row successfully.
 - [ ] **Branch `fix/sqlite-foundation` — Anthony:** Verify `.gitignore` excludes local images, generated metadata, databases, and indexes, and those files are not already tracked. **Pass:** `git ls-files` contains none of the sensitive/generated assets; source scripts remain tracked.
 - [ ] **Branch `fix/sqlite-foundation` — Anthony:** Prepare the same three approved local test photos on both machines and record their intended descriptions for testing. Each developer may have different locally generated UUIDs. **Pass:** both can import the three files, rerun without duplicates, and resolve all stored paths to existing images.
+
+
 
 ## 2. Connect captioning to the registered photos — first integration gate
 
@@ -48,11 +71,13 @@ Suggested owner: Blake. Depends on sections 0–1.
 - [ ] **Branch `fix/caption-sqlite` — Both:** Replace the hardcoded `[:3]` production limit with an explicit optional test limit, and document the actual command. **Pass:** test mode processes one eligible photo; the normal command can process all eligible registered photos.
 - [ ] **Branch `fix/caption-sqlite` — Both:** Demonstrate importer → captioner → SQLite on all three test photos. **Pass:** three original IDs, three valid captions/metadata records, and zero changes when processing is rerun. Merge only after this handoff works.
 
+
+
 ## 3. Make the app display SQLite records and accept imports
 
 Purpose: show the database's current contents before adding retrieval complexity. Pipeline steps 1–5 and 16.
 
-Suggested owner: Anthony. Depends on section 2 for populated records; UI layout can start earlier using the agreed synthetic example.
+Suggested owner: Anthony. Start alongside section 2 using the agreed synthetic record; final integration requires section 2 to pass.
 
 - [ ] **Branch `feat/sqlite-gallery` — Anthony:** Change `app.py` to read SQLite records and decode `metadata` using the agreed keys. Remove the mandatory `captions.json` read and stale `p["attributes"]` access. **Pass:** the app starts with no JSON file and displays the three captioned records.
 - [ ] **Branch `feat/sqlite-gallery` — Anthony:** Resolve stored image paths consistently and show useful empty-library, pending-caption, invalid-metadata, and missing-image states. **Pass:** a missing image or empty database does not crash the gallery.
@@ -60,73 +85,81 @@ Suggested owner: Anthony. Depends on section 2 for populated records; UI layout 
 - [ ] **Branch `feat/sqlite-gallery` — Anthony:** Add a local folder-path input and Import action that calls the existing importer rather than reimplementing it. Explain that the folder must exist on the machine running Streamlit. **Pass:** importing a new photo from the UI creates one database row; repeating it creates none.
 - [ ] **Branch `feat/sqlite-gallery` — Anthony:** Add an explicit Process pending photos action connected to section 2, with completion/failure feedback; prevent ordinary Streamlit reruns from launching captioning again. **Pass:** staff can open the app, register a photo, process it, and see its saved caption without manually running Python scripts.
 
+
+
+### Start the collection batch here — continue other work while it runs
+
+- [ ] **Branch `fix/caption-sqlite` — Blake:** Once three real photos pass captioning and SQLite gallery display, run the captioner against the supplied collection using the documented unrestricted command. Record the actual file count and failures; commit each successful result independently so interruption does not lose completed work. **Pass:** processing starts without the old three-photo cap; another run skips completed rows. Track the final counts in section 8. Do not start a second worker against the same local database.
+
 ## 4. Build a semantic index from SQLite
 
 Purpose: turn current captions and descriptive metadata into searchable vectors. Pipeline steps 11–12.
 
 Suggested owner: Anthony. Depends on the section 0 contract and captioned rows from section 2.
 
-- [ ] **Branch `feat/semantic-index` — Anthony:** Add Sentence Transformers and FAISS dependencies, choose one exact embedding model, and record its identifier. Add a reusable searchable-text builder in proposed `search.py`. **Pass:** a known SQLite row produces documented text containing its caption and agreed descriptive fields.
-- [ ] **Branch `feat/semantic-index` — Anthony:** Embed valid captioned records, build the FAISS index, and save an ordered photo-ID mapping alongside it under ignored `indexes/`. Record model identity and normalization/distance choices. **Pass:** every indexed vector resolves to exactly one existing SQLite ID.
-- [ ] **Branch `feat/semantic-index` — Anthony:** Add proposed `scripts/build_index.py` as a documented rebuild command; handle no eligible records cleanly. **Pass:** rebuilding twice produces the expected record count without accumulating duplicate entries.
-- [ ] **Branch `feat/semantic-index` — Both:** Test search directly with a natural-language query encoded by the same model and compatible normalization. **Pass:** returned IDs resolve to SQLite rows, and a paraphrased query retrieves an expected test photo without requiring exact word overlap. Record the query and observed results.
+- [ ] **Branch `feat/semantic-search` — Anthony:** Add Sentence Transformers and FAISS dependencies, choose one exact embedding model, and record its identifier. Add a reusable searchable-text builder in proposed `search.py`. **Pass:** a known SQLite row produces documented text containing its caption and agreed descriptive fields.
+- [ ] **Branch `feat/semantic-search` — Anthony:** Embed valid captioned records, build the FAISS index, and save an ordered photo-ID mapping alongside it under ignored `indexes/`. Record model identity and normalization/distance choices. **Pass:** every indexed vector resolves to exactly one existing SQLite ID.
+- [ ] **Branch `feat/semantic-search` — Anthony:** Add proposed `scripts/build_index.py` as a documented rebuild command; handle no eligible records cleanly. **Pass:** rebuilding twice produces the expected record count without accumulating duplicate entries.
+- [ ] **Branch `feat/semantic-search` — Both:** Test search directly with a natural-language query encoded by the same model and compatible normalization. **Pass:** returned IDs resolve to SQLite rows, and a paraphrased query retrieves an expected test photo without requiring exact word overlap. Record the query and observed results.
+
+
 
 ## 5. Connect semantic results to the gallery
 
 Purpose: replace keyword counting with the semantic search path. Pipeline steps 13–16.
 
-Suggested owner: Anthony. Depends on sections 3–4.
+Suggested owner: Anthony. Depends on sections 3–4. Continue on the same feat/semantic-search branch; section 4 checks the search module, and this section checks the app connection.
 
-- [ ] **Branch `feat/semantic-search-ui` — Anthony:** Wire the search box to query embedding → FAISS ranking → SQLite lookup. Preserve ranking when loading records; show current captions and attributes from SQLite. **Pass:** gallery order matches returned ranked IDs, rather than database row order.
-- [ ] **Branch `feat/semantic-search-ui` — Anthony:** Add an explicit initial/rebuild-index action and clear feedback for a missing or incompatible index. Newly captioned photos must become searchable after rebuilding. **Pass:** the UI explains an absent index and can create a usable one.
-- [ ] **Branch `feat/semantic-search-ui` — Both:** Test the complete import → process → index → query → selected-photo flow using three photos. **Pass:** the same SQLite ID can be traced through every stage; no JSON export is required to operate the app.
+- [ ] **Branch `feat/semantic-search` — Anthony:** Wire the search box to query embedding → FAISS ranking → SQLite lookup. Preserve ranking when loading records; show current captions and attributes from SQLite. **Pass:** gallery order matches returned ranked IDs, rather than database row order.
+- [ ] **Branch `feat/semantic-search` — Anthony:** Add an explicit initial/rebuild-index action and clear feedback for a missing or incompatible index. Newly captioned photos must become searchable after rebuilding. **Pass:** the UI explains an absent index and can create a usable one.
+- [ ] **Branch `feat/semantic-search` — Both:** Test the complete import → process → index → query → selected-photo flow using three photos. **Pass:** the same SQLite ID can be traced through every stage; no JSON export is required to operate the app.
 
-## 6. Add the three related-photo actions
 
-Purpose: selecting a photo opens the three discovery routes required by Track B. Pipeline step 17.
 
-Suggested owner: Blake. Depends on sections 3–5. Label-entry controls here feed the unified review-save action in section 7.
+## 6. Build staff review and related-photo navigation together
 
-- [ ] **Branch `feat/related-photo-pivots` — Blake:** Add Same event using an exact SQLite query on a nonempty confirmed `event_group`. **Pass:** known members of one test event appear; an unrelated event with the same activity does not.
-- [ ] **Branch `feat/related-photo-pivots` — Blake:** Add Same venue using an exact SQLite query on a nonempty confirmed `venue`. **Pass:** photos from two events at one confirmed venue appear together; unrelated generic settings do not.
-- [ ] **Branch `feat/related-photo-pivots` — Blake:** Add Similar participant descriptions using a selected person's clothing/gear description and candidate participant text, not whole-scene embeddings. Label results as descriptive matches. **Pass:** similar clothing can match across different scenes; sharing only background objects does not drive the match.
-- [ ] **Branch `feat/related-photo-pivots` — Blake:** Handle unknown labels and missing participant descriptions without grouping every unknown together; offer return to previous results. **Pass:** each unavailable action explains the missing information and preserves usable navigation.
+Purpose: provide the confirmed labels needed by the event/venue pivots, then test all three navigation actions. Pipeline steps 17–18.
 
-## 7. Save staff acceptance, corrections, and confirmed groups
+Suggested owner: Blake. Start after the section 3 selected-photo view works. Event/venue controls depend on SQLite only. The participant-description action requires semantic retrieval from sections 4–5. Use one branch for these closely connected UI changes; implement the tasks below in order.
 
-Purpose: the app becomes a curation workspace. Pipeline step 18.
+- [ ] **Branch `feat/curation-pivots` — Blake:** Add a repeatable SQLite migration for `review_status` with default `unreviewed` and supported values `unreviewed`, `accepted`, `edited`. Update setup for fresh databases too. **Pass:** existing IDs, captions, and metadata survive; both new and existing databases support review status.
+- [ ] **Branch `feat/curation-pivots` — Blake:** Add Accept and Edit/Save actions to the selected-photo view. Let staff correct caption, descriptive fields, event group, and venue; validate fields and write to the selected ID. Make shared event/venue labels reusable across photos. **Pass:** acceptance persists without altering content; an edit updates only the selected row and marks it edited; two photos can receive the same confirmed group labels.
+- [ ] **Branch `feat/curation-pivots` — Blake:** Add Same event using an exact SQLite query on a nonempty confirmed `event_group`. **Pass:** assign two test photos to one event using the UI; the action returns those photos but excludes an unrelated event with the same activity.
+- [ ] **Branch `feat/curation-pivots` — Blake:** Add Same venue using an exact SQLite query on a nonempty confirmed `venue`. **Pass:** assign photos from different events to one venue using the UI; the action returns the saved venue group rather than every similar generic setting.
+- [ ] **Branch `feat/curation-pivots` — Blake:** Add Similar participant descriptions using a selected person's clothing/gear description and candidate participant text, not whole-scene embeddings. Label results as descriptive matches. **Pass:** similar clothing can match across different scenes; sharing only background objects does not drive the match.
+- [ ] **Branch `feat/curation-pivots` — Blake:** Handle unknown labels and missing participant descriptions without grouping every unknown together; offer return to previous results. **Pass:** each unavailable action explains the missing information and preserves usable navigation.
+- [ ] **Branch `feat/curation-pivots` — Both:** Restart the app and rerun caption processing after a staff edit. **Pass:** corrections and review status persist; captioning does not replace them. Search refresh is the next section's integration task, not an assumed side effect of saving.
 
-Suggested owner: Blake. Depends on section 6.
 
-- [ ] **Branch `feat/staff-review` — Blake:** Add a repeatable SQLite migration for `review_status` with default `unreviewed` and supported values `unreviewed`, `accepted`, `edited`. Update setup for fresh databases too. **Pass:** existing IDs, captions, and metadata survive; both new and existing databases support review status.
-- [ ] **Branch `feat/staff-review` — Blake:** Add Accept and Edit/Save actions to the selected-photo view. Let staff correct caption, descriptive fields, event group, and venue; validate fields and write to the selected ID. **Pass:** acceptance persists without altering content; saving an edit updates the intended row and marks it edited.
-- [ ] **Branch `feat/staff-review` — Blake:** Connect event/venue entry to the pivot queries and make shared labels reusable across photos. **Pass:** staff assign two photos to one event/venue, then both related-photo actions return the saved group.
-- [ ] **Branch `feat/staff-review` — Both:** Restart the app and rerun caption processing after a staff edit. **Pass:** corrections and review status persist; captioning does not replace them.
 
-## 8. Make corrections reach search
+## 7. Make corrections reach search
 
 Purpose: staff edits change subsequent retrieval. Pipeline step 19.
 
-Suggested owner: Anthony. Depends on sections 4–7.
+Suggested owner: Anthony. Depends on sections 4–6. Coordinate with Blake when modifying the same app.py save handler.
 
 - [ ] **Branch `fix/search-refresh-after-edits` — Anthony:** After searchable content changes, rebuild searchable text, vectors, and the ID mapping; a complete index rebuild is acceptable. Invalidate cached gallery/search data. Acceptance without content changes needs no vector rebuild. **Pass:** a distinctive corrected description becomes searchable without restarting the app.
 - [ ] **Branch `fix/search-refresh-after-edits` — Anthony:** Detect and report a failed refresh; prevent silently presenting stale results as current and provide a rebuild/retry action. **Pass:** an induced refresh failure leaves the correction safely saved and a visible recovery path.
 - [ ] **Branch `fix/search-refresh-after-edits` — Both:** Save an edit, search again, restart, and repeat the search. **Pass:** saved text, related-photo groups, and search results consistently reflect the correction, with one current index entry per eligible photo.
 
-## 9. Test the actual collection and measure results
+
+
+## 8. Finish collection verification and measure results
 
 Purpose: establish what the complete system does, rather than what its diagrams promise.
 
-Suggested owner: Both. Depends on section 8; run the larger batch as soon as the three-photo integration works.
+Suggested owner: Both. Full evaluation depends on section 7. The collection batch starts after section 3; verifying its outcome here is not permission to delay starting it.
 
-- [ ] **Branch `test/end-to-end-retrieval` — Both:** Import and process the supplied local collection, record the actual file count and failures, and remove test-only limits from the normal workflow. **Pass:** each eligible file has a registered row and either usable output or an explicit retryable failure; no invented dataset-size claim.
+- [ ] **Branch `test/end-to-end-retrieval` — Both:** Verify the outcome of the collection batch started after section 3. Record the actual file count, completed captions, skipped records, failures, and retry results; build the index from valid current records. **Pass:** each eligible file has a registered row and either usable output or an explicit retryable failure, and the final indexed count matches eligible completed records; no invented dataset-size claim.
 - [ ] **Branch `test/end-to-end-retrieval` — Both:** Prepare at least five labeled evaluation queries covering activity, setting, participant descriptions, and paraphrases. Measure Precision@5 and query-to-gallery latency; document scoring when fewer than five results exist, hardware, and collection size. **Pass:** results can be reproduced from a written procedure. These are team evaluation targets, not a claimed official five-query requirement.
 - [ ] **Branch `test/end-to-end-retrieval` — Both:** Verify same-event and same-venue results against known groups; inspect false participant matches. **Pass:** record observed failures and limitations alongside successful examples.
 - [ ] **Branch `test/end-to-end-retrieval` — Both:** Rehearse the full staff flow: open app → import uncaptioned photos → process → index → search → select → demonstrate all three pivots → accept/edit → search corrected content → restart. **Pass:** both developers can complete the workflow from the written setup without manual database repair.
 
-## 10. Package and submit the working system
 
-Purpose: satisfy the challenge deliverables and make the demonstrated system reproducible. Draft these alongside implementation; finalize after section 9.
+
+## 9. Package and submit the working system
+
+Purpose: satisfy the challenge deliverables and make the demonstrated system reproducible. Draft these alongside implementation; finalize after section 8.
 
 Suggested owner: Both.
 
@@ -136,6 +169,8 @@ Suggested owner: Both.
 - [ ] **Branch `docs/submission` — Both:** Write a concise system card with exact models, measured results, errors, unknown handling, descriptive-match limits, and bias/privacy limitations. Write a governance note covering local processing, data minimization, no facial recognition, access controls, and post-event custody restrictions. **Pass:** claims match tested behavior and actual operating practices.
 - [ ] **Branch `docs/submission` — Both:** Check the organizers' current submission deadline, destination, and required team details; prepare the demo and required assets. **Pass:** one person verifies the submission package against the Problem Case 2 deliverables and event instructions.
 - [ ] **Branch `release/mvp` — Both:** Merge the verified integrated `dev` into `main` through review and smoke-test that exact revision. **Pass:** the submitted revision completes the rehearsed flow; prototype limitations are disclosed.
+
+
 
 ## Stretch — only after the complete MVP and submission essentials work
 
