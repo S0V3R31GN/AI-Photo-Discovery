@@ -40,6 +40,16 @@ runtime validation remains pending. Animated/multipage images use the first fram
 Retry failed records (also includes other pending records):
 .\.venv\Scripts\python.exe caption.py --retry-failed --limit 10
 
+Diagnose one failed attempt without printing photo IDs, paths, or generated text:
+.\.venv\Scripts\python.exe caption.py --retry-failed --limit 1 --diagnostic
+
+The diagnostic identifies verify_image, vision, metadata, caption, or
+embed_and_save as the failed stage and reports each stage's elapsed seconds.
+Ollama metadata uses a JSON schema and a 512-token output limit; caption rewriting
+uses a 128-token output limit. Both use a 2,048-token context. Truncated responses
+raise GenerationLimitError and are not silently saved. The 180-second request
+timeout remains in place. Token limits do not guarantee a wall-clock duration.
+
 Regenerate one explicit record, retaining all protected staff fields:
 .\.venv\Scripts\python.exe caption.py --photo-id REPLACE_WITH_FULL_SHA256 --limit 1
 

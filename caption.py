@@ -11,6 +11,34 @@ from normalize import normalize
 MODEL_ID = "HuggingFaceTB/SmolVLM-500M-Instruct"
 OLLAMA_MODEL = "llama3.2:3b"
 OLLAMA_HOST = "http://127.0.0.1:11434"
+METADATA_TOKENS = 512
+CAPTION_TOKENS = 128
+METADATA_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "event": {"type": ["string", "null"]},
+        "location": {"type": ["string", "null"]},
+        "people": {"type": "array", "items": {"type": "string"}},
+        "objects": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["event", "location", "people", "objects"],
+    "additionalProperties": False,
+}
+
+
+class GenerationLimitError(RuntimeError):
+    """Output was cut off by the generation limit and must not be saved as complete."""
+
+
+def _check_complete(response):
+    if response.get("done_reason") == "length":
+        raise GenerationLimitError("Ollama hit the output-token limit; response was not saved")
+
+
+def diagnostic_result(item):
+    return {key: item[key] for key in ("status", "stage", "error_type", "seconds", "stage_seconds")}
+
+
 VISION_PROMPT = """Describe this photo in 2-3 sentences. Include visible activities,
 setting, and what each person wears or holds. Do not guess names, ages, race,
 identity, relationships, or a specific venue name. Say unknown when uncertain."""
@@ -67,9 +95,12 @@ Return a JSON object with exactly these keys:
 - people: list of individual descriptions using clothing and held items only
 - objects: list of visible objects
 Use only the description. Do not guess names, ages, race, identity, or venue
-names. Use "unknown" or [] when unsure. No extra keys."""
-    response = get_ollama().generate(model=OLLAMA_MODEL, prompt=prompt, format="json",
-                                    options={"temperature": 0}, stream=False)
+names. Use "unknown" or [] when unsure. Keep each description concise. No extra keys.
+JSON schema: {json.dumps(METADATA_SCHEMA)}"""
+    response = get_ollama().generate(model=OLLAMA_MODEL, prompt=prompt, format=METADATA_SCHEMA,
+                                    options={"temperature": 0, "num_predict": METADATA_TOKENS,
+                                             "num_ctx": 2048}, stream=False)
+    _check_complete(response)
     proposal = validate_metadata(json.loads(response["response"]))
     proposal["people"] = [normalize(person) for person in proposal["people"]]
     return proposal
@@ -82,14 +113,16 @@ Write 1-2 natural sentences describing what is visible. Use only the supplied
 data. Never guess names, ages, race, identity, relationships, or venue names.
 Return only the sentences."""
     response = get_ollama().generate(model=OLLAMA_MODEL, prompt=prompt,
-                                    options={"temperature": 0}, stream=False)
+                                    options={"temperature": 0, "num_predict": CAPTION_TOKENS,
+                                             "num_ctx": 2048}, stream=False)
+    _check_complete(response)
     text = response["response"]
     if not isinstance(text, str) or not text.strip():
         raise ValueError("Ollama returned an empty caption")
     return normalize(text.strip())
 
 
-def process_pending(limit=10, retry_failed=False, photo_ids=None, progress=None):
+def process_pending(limit=10, retry_failed=False, photo_ids=None, progress=None, stage_progress=None):
     """Bounded snapshot; each failure is reported and the next image continues.
 
     Explicit photo_ids may regenerate ready photos; staff locks still apply.
@@ -111,26 +144,51 @@ def process_pending(limit=10, retry_failed=False, photo_ids=None, progress=None)
     for record in records[:limit]:
         start = time.perf_counter()
         error = None
-        try:
+        error_type = None
+        stage = "verify_image"
+        stage_seconds = {}
+
+        def run_stage(name, operation, *args, **kwargs):
+            nonlocal stage
+            stage = name
+            if stage_progress:
+                stage_progress(name)
+            stage_start = time.perf_counter()
+            try:
+                return operation(*args, **kwargs)
+            finally:
+                stage_seconds[name] = round(time.perf_counter() - stage_start, 2)
+
+        def verify_image():
             path = db.resolve_stored_path(record["path"])
             if sha256(path.read_bytes()).hexdigest() != record["id"]:
                 raise ValueError("Stored content does not match its SHA256 ID; reimport/resolve this record")
-            desc = describe(path)
-            meta = validate_metadata(metadata(desc))
-            proposal = {**meta, "vision_description": desc, "caption": rich_caption(desc, meta)}
-            db.save_generated(record["id"], proposal, expected_revision=record["revision"])
+            return path
+
+        try:
+            path = run_stage("verify_image", verify_image)
+            desc = run_stage("vision", describe, path)
+            meta = run_stage("metadata", lambda: validate_metadata(metadata(desc)))
+            text = run_stage("caption", rich_caption, desc, meta)
+            proposal = {**meta, "vision_description": desc, "caption": text}
+            run_stage("embed_and_save", db.save_generated, record["id"], proposal,
+                      expected_revision=record["revision"])
             status = "ready"
         except db.RevisionConflict as exc:
+            error_type = type(exc).__name__
             status, error = "conflicts", str(exc)
         except Exception as exc:
-            error = f"{type(exc).__name__}: {exc}"
+            error_type = type(exc).__name__
+            error = f"{error_type}: stage={stage}: {exc}"
             try:
                 db.mark_failed(record["id"], error, record["revision"])
                 status = "failed"
             except db.RevisionConflict as conflict:
                 status, error = "conflicts", str(conflict)
         item = {"id": record["id"], "status": status, "error": error,
-                "seconds": round(time.perf_counter() - start, 2)}
+                "seconds": round(time.perf_counter() - start, 2),
+                "stage": "complete" if status == "ready" else stage,
+                "error_type": error_type, "stage_seconds": stage_seconds}
         summary[status] += 1
         summary["items"].append(item)
         if progress:
@@ -143,8 +201,17 @@ if __name__ == "__main__":
     parser.add_argument("--limit", type=int, default=10)
     parser.add_argument("--retry-failed", action="store_true")
     parser.add_argument("--photo-id", action="append", help="Explicit ID to regenerate; repeat to select several")
+    parser.add_argument("--diagnostic", action="store_true",
+                        help="Print stage timings and exception types without photo IDs, paths, or error text")
     args = parser.parse_args()
+
+    def print_item(item):
+        if args.diagnostic:
+            item = diagnostic_result(item)
+        print(json.dumps(item), flush=True)
+
     result = process_pending(args.limit, args.retry_failed, args.photo_id,
-                             progress=lambda item: print(json.dumps(item), flush=True))
+                             progress=print_item,
+                             stage_progress=(lambda name: print(f"Stage: {name}", flush=True)) if args.diagnostic else None)
     print(f"Ready: {result['ready']}; failed: {result['failed']}; conflicts: {result['conflicts']}")
     raise SystemExit(1 if result["failed"] or result["conflicts"] else 0)
