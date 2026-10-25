@@ -3,3 +3,6 @@ torch
 pillow
 ollama
 streamlit
+sqlite-vec
+sentence-transformers
+pillow-heif
